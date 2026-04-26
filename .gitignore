@@ -1,0 +1,15 @@
+.env
+*.txt
+*.doc
+*.docx
+*.zip
+*.rar
+*.7z
+node_modules/
+vendor/
+.DS_Store
+Thumbs.db
+*.log
+api_php/api-config.php
+api_php/api-kulcs.txt
+JAVITOTT_PHP_FAJLOK_TELJES_TARTALOM.txt
