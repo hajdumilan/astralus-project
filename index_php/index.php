@@ -1,30 +1,47 @@
 <?php
-session_start();
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
-autoLoginFromRememberCookie($pdo);
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
+
+if (isset($pdo) && $pdo instanceof PDO && function_exists('autoLoginFromRememberCookie')) {
+    try {
+        autoLoginFromRememberCookie($pdo);
+    } catch (Throwable $e) {
+        error_log('Astralus auto login hiba: ' . $e->getMessage());
+    }
+}
 
 $isLoggedIn = false;
 $userName = '';
+$user = null;
 
-if (!empty($_SESSION['user_id'])) {
+if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
     $isLoggedIn = true;
     $userId = (int) $_SESSION['user_id'];
 
-$stmt = $pdo->prepare("
-    SELECT name, credits
-    FROM users
-    WHERE id = :id
-    LIMIT 1
-");
+    try {
+        $stmt = $pdo->prepare("
+            SELECT name, credits
+            FROM users
+            WHERE id = :id
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $stmt->execute([':id' => $userId]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($user) {
-        $userName = $user['name'] ?? ($_SESSION['user_name'] ?? '');
-    } else {
+        if ($user) {
+            $userName = $user['name'] ?? ($_SESSION['user_name'] ?? '');
+        } else {
+            $userName = $_SESSION['user_name'] ?? '';
+        }
+    } catch (Throwable $e) {
+        error_log('Astralus user load hiba: ' . $e->getMessage());
         $userName = $_SESSION['user_name'] ?? '';
     }
 }
@@ -40,7 +57,7 @@ $stmt = $pdo->prepare("
     <text y=%22.9em%22 font-size=%2290%22>✨</text>
   </svg>">
   <link rel="preload" href="/assets/fonts/next-sphere/NextSphere-Black.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles_refactored.css?v=<?php echo time(); ?>">
+  <link rel="stylesheet" href="/styles_css/styles_refactored.css?v=<?php echo time(); ?>">
 </head>
 <body data-index-page data-hero-title-v2="on" data-hero-weight="black">
 <header class="header header-shell" data-site-header>
@@ -64,7 +81,7 @@ $stmt = $pdo->prepare("
 
       <?php if (!$isLoggedIn): ?>
         <div class="header-login-standalone compact-login-slot" data-header-login aria-hidden="false">
-          <a href="login.php" class="login-btn-header header-login-standalone-btn compact-login-btn" data-header-login-btn>Bejelentkezés</a>
+          <a href="/login_php/login.php" class="login-btn-header header-login-standalone-btn compact-login-btn" data-header-login-btn>Bejelentkezés</a>
         </div>
       <?php endif; ?>
 
@@ -80,7 +97,7 @@ $stmt = $pdo->prepare("
     <div class="header-zone-right desktop-actions header-right-shell">
       <div class="header-auth-row header-auth-shell">
         <?php if (!$isLoggedIn): ?>
-          <a href="register.php" class="modern-ghost-btn">Regisztráció</a>
+          <a href="/register_php/register.php" class="modern-ghost-btn">Regisztráció</a>
         <?php else: ?>
           <div class="user-chip">
             <?php echo htmlspecialchars($userName ?: ($_SESSION['user_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
@@ -155,8 +172,8 @@ $stmt = $pdo->prepare("
         <div class="mobile-drawer-divider"></div>
 
         <?php if (empty($_SESSION['user_id'])): ?>
-          <a href="login.php" class="mobile-drawer-link dark">Bejelentkezés</a>
-          <a href="register.php" class="mobile-drawer-link dark">Regisztráció</a>
+          <a href="/login_php/login.php" class="mobile-drawer-link dark">Bejelentkezés</a>
+          <a href="/register_php/register.php" class="mobile-drawer-link dark">Regisztráció</a>
         <?php else: ?>
           <div class="mobile-drawer-user"><?php echo htmlspecialchars($userName ?: ($_SESSION['user_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></div>
           <button id="mobile-logout-btn" class="mobile-drawer-link dark" type="button">Kilépés</button>
@@ -265,7 +282,7 @@ $stmt = $pdo->prepare("
           </span>
           <span class="hero-title-mask">
             <span class="hero-title-line tertiary hero-title-line--accent" data-hero-title-line>
-              <span class="hero-title-line-inner">Bármit</span>
+              <span class="hero-title-line-inner"><span class="hero-word-barimit">BÁRMIT</span></span>
             </span>
           </span>
         </h1>
@@ -306,7 +323,7 @@ $stmt = $pdo->prepare("
   <div class="container">
     <div class="section-head">
       <div class="section-kicker">✦ Interfész modul</div>
-      <h2>Müvelet Választása</h2>
+      <h2>Művelet Választása</h2>
       <p>Előnézetben működő AI felület, PDF-beolvasás, chat és dark mode kapcsoló.</p>
     </div>
 
@@ -587,16 +604,16 @@ $stmt = $pdo->prepare("
   <div class="container">
     <div class="section-head">
       <div class="section-kicker">✦ Fő modulok</div>
-      <h2>Fö Modulok</h2>
+      <h2>Fő Modulok</h2>
       <p>Hírösszefoglalás, PDF feldolgozás, jegyzetkészítés, AI chat és előzménymentés egy rendszerben.</p>
     </div>
 
     <div class="grid-3">
-      <article class="card"><div class="feature-icon">🌐</div><h3>Hírkeresö modul</h3><p>Gyors témakeresés, áttekinthető találatok és automatikus AI összefoglaló egy helyen.</p></article>
+      <article class="card"><div class="feature-icon">🌐</div><h3>Hírkereső modul</h3><p>Gyors témakeresés, áttekinthető találatok és automatikus AI összefoglaló egy helyen.</p></article>
       <article class="card"><div class="feature-icon">📄</div><h3>PDF Összefoglaló</h3><p>Böngészőből feltöltött PDF szövegének kivonata.</p></article>
       <article class="card"><div class="feature-icon">💬</div><h3>AI Chat</h3><p>Teljes beszélgetős panel helyi mentéssel.</p></article>
       <article class="card"><div class="feature-icon">🧠</div><h3>Házi Feladat AI</h3><p>Dolgozatra és beadandóra használható jegyzetek.</p></article>
-      <article class="card"><div class="feature-icon">🕘</div><h3>Elözménymentés</h3><p>Korábbi válaszok és AI munkamenetek visszanézhetők.</p></article>
+      <article class="card"><div class="feature-icon">🕘</div><h3>Előzménymentés</h3><p>Korábbi válaszok és AI munkamenetek visszanézhetők.</p></article>
       <article class="card"><div class="feature-icon">🌙</div><h3>Dark mode</h3><p>Egy kattintással átváltható világos és sötét mód között.</p></article>
     </div>
   </div>
@@ -606,7 +623,10 @@ $stmt = $pdo->prepare("
   <div class="container">
     <div class="section-head">
       <div class="section-kicker">✦ Működési protokoll</div>
-      <h2>Végrehajtási Sorrend</h2>
+      <h2>
+        <span class="workflow-line workflow-line-top">VÉGREHAJTÁSI</span>
+        <span class="workflow-line workflow-line-bottom">SORREND</span>
+      </h2>
       <p>3 egyszerű lépésben működik.</p>
     </div>
 
@@ -669,7 +689,9 @@ window.ASTRALUS_SERVER_CREDITS = <?php
 ?>;
 </script>
 
-<script src="script.js?v=<?php echo time(); ?>"></script>
+<form id="logout-form" method="POST" action="/logout_php/logout.php" hidden></form>
+
+<script src="/script_js/script.js?v=<?php echo time(); ?>"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {

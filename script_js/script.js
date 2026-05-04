@@ -48,6 +48,8 @@ const creditDisplay = document.getElementById("credit-count");
 
 const HISTORY_KEY = "aiWrappedHistory";
 const THEME_KEY = "aiWrappedTheme";
+const API_ENDPOINT = "/api_php/api.php";
+const HISTORY_ENDPOINT = "/api_php/history.php";
 
 let currentCredits = Number(window.ASTRALUS_SERVER_CREDITS ?? 0);
 const IS_LOGGED_IN = Boolean(window.ASTRALUS_IS_LOGGED_IN ?? false);
@@ -103,7 +105,7 @@ async function loadHistoryFromServer(force = false) {
     return getHistoryItems();
   }
 
-  const data = await apiCall("list_history", {}, "history.php");
+  const data = await apiCall("list_history", {}, HISTORY_ENDPOINT);
   setHistoryItems(Array.isArray(data.items) ? data.items : []);
   return getHistoryItems();
 }
@@ -114,7 +116,7 @@ async function saveHistoryToServer(item) {
   const data = await apiCall(
     "upsert_history",
     { item },
-    "history.php"
+    HISTORY_ENDPOINT
   );
 
   setHistoryItems(Array.isArray(data.items) ? data.items : []);
@@ -127,7 +129,7 @@ async function deleteHistoryFromServer(id) {
   const data = await apiCall(
     "delete_history",
     { id },
-    "history.php"
+    HISTORY_ENDPOINT
   );
 
   setHistoryItems(Array.isArray(data.items) ? data.items : []);
@@ -139,13 +141,13 @@ async function clearHistoryOnServer() {
   const data = await apiCall(
     "clear_history",
     {},
-    "history.php"
+    HISTORY_ENDPOINT
   );
 
   setHistoryItems(Array.isArray(data.items) ? data.items : []);
 }
 
-async function apiCall(action, payload, endpoint = "api.php") {
+async function apiCall(action, payload, endpoint = API_ENDPOINT) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -1041,9 +1043,16 @@ function animatePanelSwitch(nextTabKey) {
 
 var sparkleParallaxState = {
   initialized: false,
-  ticking: false,
+  rafId: 0,
+  current: 0,
+  target: 0,
   reduceMotionQuery: null,
+  layer: null,
 };
+
+const SPARKLE_SCROLL_FACTOR = 0.08;
+const SPARKLE_LERP = 0.08;
+const SPARKLE_SETTLE_EPSILON = 0.05;
 
 function hasSparkleLayer() {
   return !!(
@@ -1053,36 +1062,94 @@ function hasSparkleLayer() {
   );
 }
 
+function getSparkleLayer() {
+  if (!sparkleParallaxState.layer || !document.body.contains(sparkleParallaxState.layer)) {
+    sparkleParallaxState.layer = document.querySelector(".sparkles-layer");
+  }
+
+  return sparkleParallaxState.layer;
+}
+
 function writeSparkleOffset(value) {
+  const sparkleLayer = getSparkleLayer();
+
+  if (sparkleLayer) {
+    sparkleLayer.style.setProperty(
+      "--sparkle-scroll-offset",
+      value + "px"
+    );
+  }
+
   document.documentElement.style.setProperty(
     "--sparkle-scroll-offset",
     value + "px"
   );
 }
 
-function updateSparkleOffset() {
-  sparkleParallaxState.ticking = false;
+function updateSparkleTarget() {
+  if (
+    !hasSparkleLayer() ||
+    (sparkleParallaxState.reduceMotionQuery &&
+      sparkleParallaxState.reduceMotionQuery.matches)
+  ) {
+    sparkleParallaxState.target = 0;
+    return;
+  }
+
+  var y = window.scrollY || window.pageYOffset || 0;
+  sparkleParallaxState.target = y * SPARKLE_SCROLL_FACTOR;
+}
+
+function requestSparkleFrame() {
+  if (sparkleParallaxState.rafId) return;
+
+  sparkleParallaxState.rafId = (window.requestAnimationFrame || function (callback) {
+    return window.setTimeout(callback, 16);
+  })(runSparkleFrame);
+}
+
+function runSparkleFrame() {
+  var distance;
+
+  sparkleParallaxState.rafId = 0;
 
   if (
     !hasSparkleLayer() ||
     (sparkleParallaxState.reduceMotionQuery &&
       sparkleParallaxState.reduceMotionQuery.matches)
   ) {
+    sparkleParallaxState.current = 0;
+    sparkleParallaxState.target = 0;
     writeSparkleOffset(0);
     return;
   }
 
-  var y = window.scrollY || window.pageYOffset || 0;
-  writeSparkleOffset(y * 0.08);
+  sparkleParallaxState.current +=
+    (sparkleParallaxState.target - sparkleParallaxState.current) *
+    SPARKLE_LERP;
+
+  distance = Math.abs(sparkleParallaxState.target - sparkleParallaxState.current);
+
+  if (distance < SPARKLE_SETTLE_EPSILON) {
+    sparkleParallaxState.current = sparkleParallaxState.target;
+  }
+
+  writeSparkleOffset(sparkleParallaxState.current);
+
+  if (Math.abs(sparkleParallaxState.target - sparkleParallaxState.current) >= SPARKLE_SETTLE_EPSILON) {
+    requestSparkleFrame();
+  }
+}
+
+function updateSparkleOffset() {
+  updateSparkleTarget();
+  sparkleParallaxState.current = sparkleParallaxState.target;
+  writeSparkleOffset(sparkleParallaxState.current);
 }
 
 function queueSparkleOffsetUpdate() {
-  if (sparkleParallaxState.ticking) return;
-  sparkleParallaxState.ticking = true;
-
-  (window.requestAnimationFrame || function (callback) {
-    return window.setTimeout(callback, 16);
-  })(updateSparkleOffset);
+  updateSparkleTarget();
+  requestSparkleFrame();
 }
 
 function initSparkleParallax() {
@@ -1099,7 +1166,7 @@ function initSparkleParallax() {
   ) {
     sparkleParallaxState.reduceMotionQuery.addEventListener(
       "change",
-      queueSparkleOffsetUpdate
+      updateSparkleOffset
     );
   }
 
@@ -1500,17 +1567,282 @@ function initIndexCinematicIntro() {
 initIndexCinematicIntro();
 initSparkleParallax();
 
+/* ================= SMOOTH WHEEL SCROLL ================= */
+
+const SMOOTH_WHEEL_SPEED = 0.95;
+const SMOOTH_WHEEL_SMOOTHNESS = 0.14;
+const SMOOTH_WHEEL_SETTLE_EPSILON = 0.5;
+const SMOOTH_WHEEL_FRAME_MS = 1000 / 60;
+const SMOOTH_WHEEL_MAX_FRAME_MULTIPLIER = 4;
+const SMOOTH_WHEEL_DELTA_LINE = 1;
+const SMOOTH_WHEEL_DELTA_PAGE = 2;
+const SMOOTH_WHEEL_NATIVE_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  '[contenteditable="true"]',
+  ".chat-messages",
+  ".confirm-overlay",
+  ".confirm-modal",
+  ".pricing-overlay",
+  ".pricing-card",
+  "[data-native-scroll]"
+].join(",");
+
+function initSmoothWheelScroll() {
+  var reduceMotionQuery = window.matchMedia
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+  var finePointerQuery = window.matchMedia
+    ? window.matchMedia("(hover: hover) and (pointer: fine)")
+    : null;
+  var hasTouch =
+    "ontouchstart" in window ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+    (navigator.msMaxTouchPoints && navigator.msMaxTouchPoints > 0);
+  var currentY = getWindowScrollY();
+  var targetY = currentY;
+  var animationFrameId = 0;
+  var isAnimating = false;
+  var lastFrameTime = 0;
+
+  function canRunSmoothWheel() {
+    return !!(
+      !hasTouch &&
+      (!finePointerQuery || finePointerQuery.matches) &&
+      (!reduceMotionQuery || !reduceMotionQuery.matches)
+    );
+  }
+
+  if (!canRunSmoothWheel()) return;
+
+  function getMaxScrollY() {
+    var doc = document.documentElement;
+    var body = document.body;
+    var scrollHeight = Math.max(
+      doc ? doc.scrollHeight : 0,
+      body ? body.scrollHeight : 0,
+      doc ? doc.offsetHeight : 0,
+      body ? body.offsetHeight : 0
+    );
+
+    return Math.max(0, scrollHeight - window.innerHeight);
+  }
+
+  function getWindowScrollY() {
+    return window.scrollY || window.pageYOffset || 0;
+  }
+
+  function clampScrollY(value) {
+    return Math.min(getMaxScrollY(), Math.max(0, value));
+  }
+
+  function syncSmoothWheelPosition() {
+    currentY = clampScrollY(getWindowScrollY());
+    targetY = currentY;
+  }
+
+  function normalizeWheelDelta(event) {
+    if (event.deltaMode === SMOOTH_WHEEL_DELTA_LINE) {
+      return event.deltaY * 18;
+    }
+
+    if (event.deltaMode === SMOOTH_WHEEL_DELTA_PAGE) {
+      return event.deltaY * window.innerHeight;
+    }
+
+    return event.deltaY;
+  }
+
+  function isElementScrollable(element) {
+    var style;
+    var overflowY;
+
+    if (!element || element === document.body || element === document.documentElement) {
+      return false;
+    }
+
+    style = window.getComputedStyle(element);
+    overflowY = style ? style.overflowY : "";
+
+    return !!(
+      (overflowY === "auto" || overflowY === "scroll") &&
+      element.scrollHeight > element.clientHeight + 1
+    );
+  }
+
+  function shouldUseNativeScroll(target) {
+    var element =
+      target && target.nodeType === Node.ELEMENT_NODE
+        ? target
+        : target && target.parentElement;
+
+    if (!element) return false;
+
+    if (element.closest(SMOOTH_WHEEL_NATIVE_SELECTOR)) {
+      return true;
+    }
+
+    while (element && element !== document.body && element !== document.documentElement) {
+      if (isElementScrollable(element)) {
+        return true;
+      }
+
+      element = element.parentElement;
+    }
+
+    return false;
+  }
+
+  function setSmoothWheelActive(isActive) {
+    document.documentElement.classList.toggle("smooth-wheel-active", isActive);
+  }
+
+  function stopSmoothWheelAnimation(syncPosition) {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = 0;
+    }
+
+    isAnimating = false;
+    lastFrameTime = 0;
+    setSmoothWheelActive(false);
+
+    if (syncPosition) {
+      syncSmoothWheelPosition();
+    }
+  }
+
+  function getFrameAdjustedSmoothness(timestamp) {
+    var frameMultiplier;
+
+    if (!lastFrameTime) {
+      lastFrameTime = timestamp;
+      return SMOOTH_WHEEL_SMOOTHNESS;
+    }
+
+    frameMultiplier = Math.min(
+      SMOOTH_WHEEL_MAX_FRAME_MULTIPLIER,
+      Math.max(1, (timestamp - lastFrameTime) / SMOOTH_WHEEL_FRAME_MS)
+    );
+    lastFrameTime = timestamp;
+
+    return 1 - Math.pow(1 - SMOOTH_WHEEL_SMOOTHNESS, frameMultiplier);
+  }
+
+  function animateSmoothWheelScroll(timestamp) {
+    var distance;
+    var smoothness;
+
+    animationFrameId = 0;
+    timestamp = typeof timestamp === "number" ? timestamp : performance.now();
+
+    if (!canRunSmoothWheel()) {
+      stopSmoothWheelAnimation(true);
+      return;
+    }
+
+    targetY = clampScrollY(targetY);
+    smoothness = getFrameAdjustedSmoothness(timestamp);
+    currentY += (targetY - currentY) * smoothness;
+    distance = Math.abs(targetY - currentY);
+
+    if (distance < SMOOTH_WHEEL_SETTLE_EPSILON) {
+      currentY = targetY;
+    }
+
+    window.scrollTo(0, currentY);
+
+    if (Math.abs(targetY - currentY) >= SMOOTH_WHEEL_SETTLE_EPSILON) {
+      animationFrameId = requestAnimationFrame(animateSmoothWheelScroll);
+      return;
+    }
+
+    stopSmoothWheelAnimation(false);
+    syncSmoothWheelPosition();
+  }
+
+  function startSmoothWheelAnimation() {
+    if (animationFrameId) return;
+
+    isAnimating = true;
+    lastFrameTime = 0;
+    setSmoothWheelActive(true);
+    animationFrameId = requestAnimationFrame(animateSmoothWheelScroll);
+  }
+
+  function handleWheel(event) {
+    if (!canRunSmoothWheel() || event.ctrlKey || shouldUseNativeScroll(event.target)) {
+      if (isAnimating) {
+        stopSmoothWheelAnimation(true);
+      }
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!isAnimating) {
+      syncSmoothWheelPosition();
+    }
+
+    targetY = clampScrollY(targetY + normalizeWheelDelta(event) * SMOOTH_WHEEL_SPEED);
+    startSmoothWheelAnimation();
+  }
+
+  function handleNativeScroll() {
+    var scrollY = getWindowScrollY();
+
+    if (!isAnimating) {
+      currentY = clampScrollY(scrollY);
+      targetY = currentY;
+      return;
+    }
+
+    if (Math.abs(scrollY - currentY) > 2) {
+      stopSmoothWheelAnimation(true);
+    }
+  }
+
+  function handleUserIntervention() {
+    if (isAnimating) {
+      stopSmoothWheelAnimation(true);
+      return;
+    }
+
+    syncSmoothWheelPosition();
+  }
+
+  window.addEventListener("wheel", handleWheel, { passive: false });
+  window.addEventListener("scroll", handleNativeScroll, { passive: true });
+  window.addEventListener("resize", handleUserIntervention, { passive: true });
+  window.addEventListener("blur", handleUserIntervention, { passive: true });
+  document.addEventListener("keydown", handleUserIntervention, { passive: true });
+  document.addEventListener("mousedown", handleUserIntervention, { passive: true });
+  document.addEventListener("pointerdown", handleUserIntervention, { passive: true });
+
+  if (
+    reduceMotionQuery &&
+    typeof reduceMotionQuery.addEventListener === "function"
+  ) {
+    reduceMotionQuery.addEventListener("change", function (event) {
+      if (event.matches) {
+        stopSmoothWheelAnimation(true);
+      }
+    });
+  }
+}
+
 /* ================= HERO TITLE WIDTH NORMALIZER V2 ================= */
 
 var HERO_TITLE_WIDTH_DEFAULTS = {
   maxScale: 1,
-  minScale: 0.92,
+  minScale: 0.72,
   resizeDebounceMs: 80,
   followupDelays: [60, 180, 520],
   sidePadding: function () {
-    if (window.innerWidth <= 520) return 12;
-    if (window.innerWidth <= 900) return 16;
-    return 24;
+    if (window.innerWidth <= 520) return 10;
+    if (window.innerWidth <= 900) return 14;
+    return 20;
   }
 };
 
@@ -1701,7 +2033,11 @@ function applyHeroTitleScale(entry, naturalWidth, targetWidth, config, title) {
     return;
   }
 
-  scale = targetWidth / naturalWidth;
+  if (naturalWidth > targetWidth) {
+    scale = targetWidth / naturalWidth;
+  } else {
+    scale = 1;
+  }
 
   if (!Number.isFinite(scale) || scale <= 0) {
     scale = 1;
@@ -1911,13 +2247,15 @@ window.HERO_TITLE_WIDTH_DEFAULTS = HERO_TITLE_WIDTH_DEFAULTS;
 window.normalizeHeroTitleWidth = normalizeHeroTitleWidth;
 window.initHeroTitleWidthNormalization = initHeroTitleWidthNormalization;
 
-initHeroTitleWidthNormalization(HERO_TITLE_WIDTH_DEFAULTS);
+// TEMP FIX: kikapcsolva, mert a hero-title sorokat torzítja / rosszul méri.
+// initHeroTitleWidthNormalization(HERO_TITLE_WIDTH_DEFAULTS);
 
 /* ================= DOM READY ================= */
 
 document.addEventListener("DOMContentLoaded", function () {
   document.body.classList.add("loaded");
   requestNotificationPermissionIfNeeded();
+  initSmoothWheelScroll();
 
   function updateScrollProgressBar() {
     const progressBar = document.getElementById("scroll-progress-bar");

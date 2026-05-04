@@ -4,11 +4,11 @@ session_start();
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /login.php');
+    header('Location: /login_php/login.php');
     exit;
 }
 
@@ -20,7 +20,7 @@ $_SESSION['old_login_email'] = $email;
 
 if ($email === '' || $password === '') {
     $_SESSION['login_error'] = 'Kérlek, töltsd ki az összes mezőt.';
-    header('Location: /login.php');
+    header('Location: /login_php/login.php');
     exit;
 }
 
@@ -37,19 +37,19 @@ try {
 
     if (!$user) {
         $_SESSION['login_error'] = 'Nincs ilyen felhasználó.';
-        header('Location: /login.php');
+        header('Location: /login_php/login.php');
         exit;
     }
 
     if (empty($user['password_hash'])) {
         $_SESSION['login_error'] = 'Ehhez a fiókhoz nincs érvényes jelszó mentve.';
-        header('Location: /login.php');
+        header('Location: /login_php/login.php');
         exit;
     }
 
     if (!password_verify($password, $user['password_hash'])) {
         $_SESSION['login_error'] = 'Hibás jelszó.';
-        header('Location: /login.php');
+        header('Location: /login_php/login.php');
         exit;
     }
 
@@ -69,6 +69,6 @@ try {
 
 } catch (Throwable $e) {
     $_SESSION['login_error'] = 'Szerverhiba: ' . $e->getMessage();
-    header('Location: /login.php');
+    header('Location: /login_php/login.php');
     exit;
 }

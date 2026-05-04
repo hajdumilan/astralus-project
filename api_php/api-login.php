@@ -3,7 +3,7 @@
 header('Content-Type: application/json');
 session_start();
 
-require_once __DIR__ . '/includes/db.php'; // DB kapcsolat
+require_once __DIR__ . '/../includes/db.php'; // DB kapcsolat
 
 $data = json_decode(file_get_contents("php://input"), true);
 

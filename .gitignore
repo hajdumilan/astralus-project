@@ -13,3 +13,4 @@ Thumbs.db
 api_php/api-config.php
 api_php/api-kulcs.txt
 JAVITOTT_PHP_FAJLOK_TELJES_TARTALOM.txt
+*.bak-*

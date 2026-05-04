@@ -2,18 +2,23 @@
 session_start();
 
 $error = $_SESSION['login_error'] ?? '';
-$success = $_SESSION['login_success'] ?? '';
+$success = $_SESSION['login_success'] ?? ($_SESSION['register_success'] ?? '');
 $oldEmail = $_SESSION['old_login_email'] ?? '';
 
-unset($_SESSION['login_error'], $_SESSION['login_success'], $_SESSION['old_login_email']);
+unset(
+    $_SESSION['login_error'],
+    $_SESSION['login_success'],
+    $_SESSION['register_success'],
+    $_SESSION['old_login_email']
+);
 
 if (!empty($_SESSION['user_id'])) {
     header('Location: /index.php');
     exit;
 }
 
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 if (function_exists('autoLoginFromRememberCookie')) {
     autoLoginFromRememberCookie($pdo);
@@ -1177,6 +1182,15 @@ if (!empty($_SESSION['user_id'])) {
             opacity: 0.72;
         }
 
+        .login-link[aria-disabled="true"] {
+            cursor: default;
+            opacity: 0.64;
+        }
+
+        .login-link[aria-disabled="true"]:hover {
+            opacity: 0.64;
+        }
+
         .auth-footer {
             margin-top: 18px;
             padding-top: 18px;
@@ -1829,7 +1843,7 @@ if (!empty($_SESSION['user_id'])) {
                                     <div class="form-message error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
                                 <?php endif; ?>
 
-                                <form action="/login-process.php" method="POST" class="login-form">
+                                <form action="/login_php/login-process.php" method="POST" class="login-form">
                                     <div class="field">
                                         <label for="email" class="field-label">E-mail cĂ­m</label>
                                         <input
@@ -1866,14 +1880,18 @@ if (!empty($_SESSION['user_id'])) {
                                             <span>Maradjak bejelentkezve</span>
                                         </label>
 
-                                        <a href="/forgot-password.php" class="login-link">Elfelejtett jelszĂł</a>
+                                        <span
+                                            class="login-link"
+                                            aria-disabled="true"
+                                            title="A jelsz&oacute;-vissza&aacute;ll&iacute;t&aacute;s jelenleg nem &eacute;rhet&#337; el."
+                                        >Elfelejtett jelsz&oacute;</span>
                                     </div>
 
                                     <button type="submit" class="primary-btn">BejelentkezĂ©s</button>
                                 </form>
 
                                 <div class="auth-footer">
-                                    Nincs mĂ©g fiĂłkod? <a href="/register.php">RegisztrĂˇciĂł</a>
+                                    Nincs mĂ©g fiĂłkod? <a href="/register_php/register.php">RegisztrĂˇciĂł</a>
                                 </div>
                             </div>
                         </div>

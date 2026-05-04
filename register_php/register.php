@@ -1,8 +1,8 @@
 <?php
 session_start();
 
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 if (function_exists('autoLoginFromRememberCookie')) {
     autoLoginFromRememberCookie($pdo);
@@ -41,31 +41,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($lastname === '' || $firstname === '' || $email === '' || $password === '' || $passwordConfirm === '') {
         $_SESSION['register_error'] = 'KĂ©rlek, tĂ¶lts ki minden mezĹ‘t.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 
     if (!$termsAccepted) {
         $_SESSION['register_error'] = 'A regisztrĂˇciĂłhoz el kell fogadnod a feltĂ©teleket.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['register_error'] = 'Ă‰rvĂ©nytelen e-mail cĂ­m.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 
     if (mb_strlen($password) < 6) {
         $_SESSION['register_error'] = 'A jelszĂłnak legalĂˇbb 6 karakter hosszĂşnak kell lennie.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 
     if ($password !== $passwordConfirm) {
         $_SESSION['register_error'] = 'A kĂ©t jelszĂł nem egyezik.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($existingUser) {
             $_SESSION['register_error'] = 'Ez az e-mail cĂ­m mĂˇr regisztrĂˇlva van.';
-            header('Location: register.php');
+            header('Location: /register_php/register.php');
             exit;
         }
 
@@ -104,12 +104,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         $_SESSION['register_success'] = 'A regisztrĂˇciĂł sikeres. Most mĂˇr bejelentkezhetsz.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
 
     } catch (Throwable $e) {
         $_SESSION['register_error'] = 'Hiba tĂ¶rtĂ©nt a regisztrĂˇciĂł sorĂˇn. KĂ©rlek, prĂłbĂˇld Ăşjra.';
-        header('Location: register.php');
+        header('Location: /register_php/register.php');
         exit;
     }
 }
@@ -1836,7 +1836,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="form-message error"><?php echo htmlspecialchars($registerError, ENT_QUOTES, 'UTF-8'); ?></div>
                                 <?php endif; ?>
 
-                                <form method="POST" action="register.php" class="register-form">
+                                <form method="POST" action="/register_php/register-process.php" class="register-form">
                                     <div class="field-grid two-col">
                                         <div class="field">
                                             <label for="lastname" class="field-label">VezetĂ©knĂ©v</label>
@@ -1920,7 +1920,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </form>
 
                                 <div class="register-footer">
-                                    MĂˇr van fiĂłkod? <a href="/login.php">BejelentkezĂ©s</a>
+                                    MĂˇr van fiĂłkod? <a href="/login_php/login.php">BejelentkezĂ©s</a>
                                 </div>
                             </div>
                         </div>
