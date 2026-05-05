@@ -6,6 +6,10 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
+}
+
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 
@@ -50,16 +54,23 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 <html lang="hu">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Astralus Intelligence</title>
   <link rel="icon" href="data:image/svg+xml,
   <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22>
     <text y=%22.9em%22 font-size=%2290%22>✨</text>
   </svg>">
   <link rel="preload" href="/assets/fonts/next-sphere/NextSphere-Black.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/franie/Franie-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/pros/Pros-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles_css/styles_refactored.css?v=<?php echo time(); ?>">
 </head>
-<body data-index-page data-hero-title-v2="on" data-hero-weight="black">
+<body
+  data-index-page
+  data-hero-title-v2="on"
+  data-hero-weight="black"
+  data-api-base="/api_php"
+>
 <header class="header header-shell" data-site-header>
   <div class="header-liquid-layer" aria-hidden="true"></div>
   <div class="header-border-shine" aria-hidden="true"></div>
@@ -160,11 +171,7 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
         <div class="mobile-drawer-section">
           <div class="mobile-drawer-section-title">Főmenü</div>
 
-          <button type="button" class="mobile-drawer-link mobile-tools-entry-btn" id="mobile-tools-entry-btn">
-            <span>Eszközök</span>
-            <span class="mobile-entry-arrow">›</span>
-          </button>
-
+          <a href="#top" class="mobile-drawer-link">Főoldal</a>
           <a href="#modulok" class="mobile-drawer-link">Funkciók</a>
           <a href="#muvelet" class="mobile-drawer-link">Hogyan működik</a>
         </div>
@@ -180,39 +187,6 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
         <?php endif; ?>
 
         <a href="#app" class="mobile-drawer-link primary">Indítás ✦</a>
-      </div>
-    </div>
-
-    <div class="mobile-drawer-view mobile-drawer-view-tools" id="mobile-drawer-view-tools">
-      <div class="mobile-subview-head">
-        <button type="button" class="mobile-subview-back" id="mobile-tools-back-btn">‹</button>
-        <div class="mobile-subview-title">Eszközök</div>
-      </div>
-
-      <div class="mobile-subview-body">
-        <div class="mobile-tools-helper-text">
-          Itt tudja kiválasztani, mely funkciót szeretné használni
-        </div>
-
-        <button type="button" class="mobile-tool-switch active" data-mobile-tab="news">
-          <span class="mobile-tool-switch-label">Hírkereső</span>
-        </button>
-
-        <button type="button" class="mobile-tool-switch" data-mobile-tab="notes">
-          <span class="mobile-tool-switch-label">Jegyzet Összefoglaló</span>
-        </button>
-
-        <button type="button" class="mobile-tool-switch" data-mobile-tab="study">
-          <span class="mobile-tool-switch-label">Astralus Study</span>
-        </button>
-
-        <button type="button" class="mobile-tool-switch" data-mobile-tab="chat">
-          <span class="mobile-tool-switch-label">AI Chat</span>
-        </button>
-
-        <button type="button" class="mobile-tool-switch" data-mobile-tab="history">
-          <span class="mobile-tool-switch-label">Előzmények</span>
-        </button>
       </div>
     </div>
   </div>
@@ -261,7 +235,7 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 <section class="hero hero-index-cinematic" data-astralus-hero>
   <div class="container hero-inner hero-index-cinematic-inner">
     <div class="hero-card hero-index-card">
-      <div class="hero-index-badge-wrap" data-hero-eyebrow-wrap>
+      <div class="hero-index-badge-wrap" data-hero-eyebrow-wrap data-mobile-hide="true">
         <div class="eyebrow hero-eyebrow hero-index-badge" data-hero-eyebrow>
           <span class="eyebrow-dot"></span>
           Astralus Intelligence
@@ -269,7 +243,7 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
       </div>
 
       <div class="hero-index-copy hero-copy">
-        <h1 class="hero-title hero-index-title cinematic-title" data-hero-title aria-label="Keress híreket Foglalj össze bármit">
+        <h1 class="hero-title hero-index-title cinematic-title" data-hero-title data-mobile-hide="true" aria-label="Keress híreket Foglalj össze bármit">
           <span class="hero-title-mask">
             <span class="hero-title-line primary" data-hero-title-line>
               <span class="hero-title-line-inner">Keress híreket</span>
@@ -287,7 +261,7 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
           </span>
         </h1>
 
-        <p class="hero-text hero-text-animated hero-index-text" data-hero-copy data-hero-text>
+        <p class="hero-text hero-text-animated hero-index-text" data-hero-copy data-hero-text data-mobile-hide="true">
           Letisztult, prémium és cinematic AI-élmény — olyan nyitó hero-val,
           ami már az első pillanatban minőséget sugall.
         </p>
@@ -302,11 +276,23 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
             <span>További részletek</span>
             <span class="hero-index-secondary-arrow">↓</span>
           </a>
+
         </div>
+      </div>
+
+      <div class="hero-copy hero-copy-mobile" aria-hidden="false">
+        <h1 class="hero-title-mobile">AI munkafelület mobilra hangolva.</h1>
+        <p class="hero-text-mobile">
+          Hírkeresés, jegyzet, study, chat és előzmények - egy kézzel is gyorsan, letisztultan.
+        </p>
+        <a href="#app" class="primary-btn hero-index-main-cta">Kipróbálom</a>
+        <?php if (!$isLoggedIn): ?>
+          <a href="/login_php/login.php" class="hero-mobile-secondary-cta">Bejelentkezés</a>
+        <?php endif; ?>
       </div>
     </div>
 
-    <div class="hero-index-media" data-hero-media aria-hidden="true">
+    <div class="hero-index-media" data-hero-media data-mobile-hide="true" aria-hidden="true">
       <div class="hero-index-media-glow hero-index-media-glow-1"></div>
       <div class="hero-index-media-glow hero-index-media-glow-2"></div>
       <div class="hero-index-orb hero-index-orb-1"></div>
@@ -327,6 +313,17 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
       <p>Előnézetben működő AI felület, PDF-beolvasás, chat és dark mode kapcsoló.</p>
     </div>
 
+    <div class="mobile-workspace-bar" id="mobile-workspace-bar" aria-live="polite">
+      <div class="mobile-workspace-copy">
+        <span class="mobile-workspace-kicker">Munkaterület</span>
+        <h2 id="mobile-current-tool-title">Hírek</h2>
+        <p id="mobile-current-tool-subtitle">AI hírösszefoglaló indítása</p>
+      </div>
+      <button type="button" class="mobile-result-ready" id="mobile-open-result-btn" hidden>
+        AI kimenet
+      </button>
+    </div>
+
     <div class="tool-panel ai-form-shell">
       <div class="tool-tabs">
         <button class="tool-tab active" type="button" data-tab="news">🔎 Hírkereső</button>
@@ -340,14 +337,14 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
         <div class="sub-grid">
           <div class="tool-box modern-card ai-form-card">
 
-            <div class="tab-panel" id="panel-news" data-news-panel">
-  <div class="module-hero-card">
-    <div class="module-hero-top">
+            <div class="tab-panel" id="panel-news" data-panel-key="news" data-news-panel>
+  <div class="module-hero-card" data-mobile-hero-shell="true">
+    <div class="module-hero-top" data-mobile-hide="true">
       <div class="module-hero-badge">🔎 Hírkereső</div>
       <div class="module-hero-icon">✦</div>
     </div>
 
-    <div class="module-hero-copy">
+    <div class="module-hero-copy" data-mobile-hide="true">
       <h3 class="module-hero-title">Hírkereső + AI összefoglaló</h3>
       <p class="module-hero-subtitle">
         Gyors hírkeresés és automatikus összefoglaló egy letisztult AI felületen.
@@ -381,6 +378,12 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 
           <input type="hidden" id="summary-type" name="summary-type" value="rovid-kivonat">
         </div>
+
+        <select class="mobile-native-select" id="summary-type-native" data-native-select-for="summary-type" aria-label="Összefoglalás típusa">
+          <option value="rovid-kivonat">Rövid kivonat</option>
+          <option value="reszletes-osszefoglalo">Részletes összefoglaló</option>
+          <option value="vizsgajegyzet">Vizsgajegyzet</option>
+        </select>
       </div>
 
       <div class="module-actions">        <button id="run-news-btn" class="btn btn-dark module-primary-btn" type="button">
@@ -393,14 +396,14 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
   <div class="news-list" id="news-list"></div>
 </div>
 
-            <div class="tab-panel" id="panel-notes" hidden>
-  <div class="module-hero-card">
-    <div class="module-hero-top">
+            <div class="tab-panel" id="panel-notes" data-panel-key="notes" hidden>
+  <div class="module-hero-card" data-mobile-hero-shell="true">
+    <div class="module-hero-top" data-mobile-hide="true">
       <div class="module-hero-badge">📝 Jegyzet</div>
       <div class="module-hero-icon">📄</div>
     </div>
 
-    <div class="module-hero-copy">
+    <div class="module-hero-copy" data-mobile-hide="true">
       <h3 class="module-hero-title">Jegyzet Összefoglaló</h3>
       <p class="module-hero-subtitle">
         Szöveg vagy PDF tartalom feldolgozása vizsgajegyzethez.
@@ -415,7 +418,7 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
           <span class="upload-icon">📄</span>
           <span class="upload-text">PDF fájlok kiválasztása</span>
         </label>
-        <div class="hint">
+        <div class="hint file-upload-note">
           Egyszerre több PDF is feltölthető. A rendszer beolvassa őket, de a PDF szövege nem jelenik meg a bemeneti mezőben.
         </div>
         <div id="pdf-file-list" class="hint" style="margin-top:8px;"></div>
@@ -447,6 +450,12 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 
           <input type="hidden" id="output-format" name="output-format" value="bullet-point">
         </div>
+
+        <select class="mobile-native-select" id="output-format-native" data-native-select-for="output-format" aria-label="Kimenet formátuma">
+          <option value="bullet-point">Bullet point összefoglaló</option>
+          <option value="bekezdeses">Bekezdéses összefoglaló</option>
+          <option value="tanulokartya">Tanulókártya stílus</option>
+        </select>
       </div>
 
       <div class="module-actions">        <button id="run-notes-btn" class="btn btn-dark module-primary-btn" type="button">
@@ -457,14 +466,14 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
   </div>
 </div>
 
-            <div class="tab-panel" id="panel-study" hidden>
-  <div class="module-hero-card">
-    <div class="module-hero-top">
+            <div class="tab-panel" id="panel-study" data-panel-key="study" hidden>
+  <div class="module-hero-card" data-mobile-hero-shell="true">
+    <div class="module-hero-top" data-mobile-hide="true">
       <div class="module-hero-badge">🎓 Study</div>
       <div class="module-hero-icon">🧠</div>
     </div>
 
-    <div class="module-hero-copy">
+    <div class="module-hero-copy" data-mobile-hide="true">
       <h3 class="module-hero-title">Astralus Study</h3>
       <p class="module-hero-subtitle">
         Adj meg témát, tantárgyat és szintet, és kapsz kész tanulási anyagot.
@@ -504,6 +513,13 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 
           <input type="hidden" id="study-level" name="study-level" value="altalanos-iskola">
         </div>
+
+        <select class="mobile-native-select" id="study-level-native" data-native-select-for="study-level" aria-label="Tanulási szint">
+          <option value="altalanos-iskola">Általános iskola</option>
+          <option value="kozepiskola">Középiskola</option>
+          <option value="erettsegi-felkeszites">Érettségi felkészítés</option>
+          <option value="egyetem">Egyetem</option>
+        </select>
       </div>
 
       <div class="module-actions">        <button id="run-study-btn" class="btn btn-dark module-primary-btn" type="button">
@@ -514,14 +530,14 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
   </div>
 </div>
 
-            <div class="tab-panel" id="panel-chat" hidden>
-  <div class="module-hero-card module-chat-shell">
-    <div class="module-hero-top">
+            <div class="tab-panel" id="panel-chat" data-panel-key="chat" hidden>
+  <div class="module-hero-card module-chat-shell" data-mobile-hero-shell="true">
+    <div class="module-hero-top" data-mobile-hide="true">
       <div class="module-hero-badge">💬 AI Chat</div>
       <div class="module-hero-icon">✦</div>
     </div>
 
-    <div class="module-hero-copy">
+    <div class="module-hero-copy" data-mobile-hide="true">
       <h3 class="module-hero-title">AI Chat</h3>
       <p class="module-hero-subtitle">
         Írj kérdést vagy témát és az AI válaszol.
@@ -547,14 +563,14 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
   </div>
 </div>
 
-            <div class="tab-panel" id="panel-history" hidden>
-  <div class="module-hero-card">
-    <div class="module-hero-top">
+            <div class="tab-panel" id="panel-history" data-panel-key="history" hidden>
+  <div class="module-hero-card" data-mobile-hero-shell="true">
+    <div class="module-hero-top" data-mobile-hide="true">
       <div class="module-hero-badge">🕘 Előzmények</div>
       <div class="module-hero-icon">✦</div>
     </div>
 
-    <div class="module-hero-copy">
+    <div class="module-hero-copy" data-mobile-hide="true">
       <h3 class="module-hero-title">Mentett előzmények</h3>
       <p class="module-hero-subtitle">
         A korábbi AI műveletek, összefoglalók és beszélgetések itt jelennek meg. Egy kattintással újranyithatod őket.
@@ -642,11 +658,18 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 
 <footer class="site-footer">
   <div class="container footer-box">
-    <div><strong>Astralus Intelligence</strong><br>Hírkereső, jegyzet összefoglaló és tanulási AI platform.</div>
+    <div class="footer-brand">
+      <strong>Astralus Intelligence</strong>
+      <p>Hírkereső, jegyzet összefoglaló és tanulási AI platform.</p>
+    </div>
     <div class="footer-links">
       <a href="#top">Főoldal</a>
       <a href="#modulok">Funkciók</a>
       <a href="#muvelet">Hogyan működik</a>
+      <?php if (!$isLoggedIn): ?>
+        <a href="/login_php/login.php" class="mobile-footer-auth-link">Bejelentkezés</a>
+        <a href="/register_php/register.php" class="mobile-footer-auth-link">Regisztráció</a>
+      <?php endif; ?>
     </div>
   </div>
 </footer>
@@ -674,6 +697,55 @@ if (!empty($_SESSION['user_id']) && isset($pdo) && $pdo instanceof PDO) {
 </div>
 
 <div class="toast-stack" id="toast-stack"></div>
+
+<div class="mobile-output-backdrop" id="mobile-output-backdrop" hidden></div>
+<section
+  class="mobile-output-sheet"
+  id="mobile-output-sheet"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="mobile-output-title"
+  hidden
+>
+  <div class="mobile-output-grip" aria-hidden="true"></div>
+  <header class="mobile-output-head">
+    <div>
+      <span class="mobile-output-kicker">AI kimenet</span>
+      <h2 id="mobile-output-title">Eredmény</h2>
+    </div>
+    <button type="button" class="mobile-output-close" id="mobile-output-sheet-close" aria-label="Eredmény bezárása">×</button>
+  </header>
+  <div class="mobile-output-tags" id="mobile-output-tags"></div>
+  <div class="mobile-output-content" id="mobile-output-content">
+    Töltsd ki a mezőket, válassz egy modult, majd indítsd a feldolgozást.
+  </div>
+  <footer class="mobile-output-actions">
+    <button type="button" class="mobile-output-copy" id="mobile-output-copy">Másolás</button>
+  </footer>
+</section>
+
+<nav class="mobile-bottom-dock" id="mobile-bottom-dock" aria-label="Eszközváltás mobilon">
+  <button type="button" class="mobile-dock-item is-active" data-dock-tab="news" aria-current="page">
+    <span class="mobile-dock-icon" aria-hidden="true">⌕</span>
+    <span class="mobile-dock-label">Hírek</span>
+  </button>
+  <button type="button" class="mobile-dock-item" data-dock-tab="notes">
+    <span class="mobile-dock-icon" aria-hidden="true">□</span>
+    <span class="mobile-dock-label">Jegyzet</span>
+  </button>
+  <button type="button" class="mobile-dock-item" data-dock-tab="study">
+    <span class="mobile-dock-icon" aria-hidden="true">A</span>
+    <span class="mobile-dock-label">Study</span>
+  </button>
+  <button type="button" class="mobile-dock-item" data-dock-tab="chat">
+    <span class="mobile-dock-icon" aria-hidden="true">•••</span>
+    <span class="mobile-dock-label">Chat</span>
+  </button>
+  <button type="button" class="mobile-dock-item" data-dock-tab="history">
+    <span class="mobile-dock-icon" aria-hidden="true">◷</span>
+    <span class="mobile-dock-label">Előzmény</span>
+  </button>
+</nav>
 
 <div class="scroll-progress" aria-hidden="true">
   <div class="scroll-progress-bar" id="scroll-progress-bar"></div>
@@ -883,16 +955,6 @@ document.addEventListener("DOMContentLoaded", function () {
     drawer.setAttribute("aria-hidden", "true");
     drawer.style.transform = "";
 
-    const drawerViews = document.getElementById("mobile-drawer-views");
-    const mainView = document.getElementById("mobile-drawer-view-main");
-    const toolsView = document.getElementById("mobile-drawer-view-tools");
-
-    if (drawerViews && mainView && toolsView) {
-      drawerViews.classList.remove("is-tools-view");
-      toolsView.classList.remove("is-active");
-      mainView.classList.add("is-active");
-    }
-
     setTimeout(() => {
       if (!drawer.classList.contains("is-open")) {
         overlay.hidden = true;
@@ -926,13 +988,6 @@ document.addEventListener("DOMContentLoaded", function () {
   drawer.querySelectorAll("a").forEach((link) => {
     link.addEventListener("click", closeDrawer);
   });
-
-if (mobileThemeBtn) {
-  mobileThemeBtn.addEventListener("click", function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  });
-}
 
   if (mobileLogoutBtn && logoutForm) {
     mobileLogoutBtn.addEventListener("click", function () {

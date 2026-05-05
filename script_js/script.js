@@ -45,11 +45,30 @@ const pdfFileList = document.getElementById("pdf-file-list");
 const chatInput = document.getElementById("chat-input");
 const toastStack = document.getElementById("toast-stack");
 const creditDisplay = document.getElementById("credit-count");
+const mobileOutputSheet = document.getElementById("mobile-output-sheet");
+const mobileOutputBackdrop = document.getElementById("mobile-output-backdrop");
+const mobileOutputCloseButton = document.getElementById("mobile-output-sheet-close");
+const mobileOutputContent = document.getElementById("mobile-output-content");
+const mobileOutputTags = document.getElementById("mobile-output-tags");
+const mobileOutputCopyButton = document.getElementById("mobile-output-copy");
+const mobileOpenResultButton = document.getElementById("mobile-open-result-btn");
+const mobileCurrentToolTitle = document.getElementById("mobile-current-tool-title");
+const mobileCurrentToolSubtitle = document.getElementById("mobile-current-tool-subtitle");
+const appSection = document.getElementById("app");
+const dockButtons = Array.from(document.querySelectorAll(".mobile-bottom-dock [data-dock-tab]"));
 
 const HISTORY_KEY = "aiWrappedHistory";
 const THEME_KEY = "aiWrappedTheme";
-const API_ENDPOINT = "/api_php/api.php";
-const HISTORY_ENDPOINT = "/api_php/history.php";
+const API_BASE = (
+  document.body?.dataset.apiBase ||
+  window.ASTRALUS_API_BASE ||
+  "/api_php"
+).replace(/\/+$/, "");
+
+const endpointFor = (file) => `${API_BASE}/${file.replace(/^\/+/, "")}`;
+
+const API_ENDPOINT = endpointFor("api.php");
+const HISTORY_ENDPOINT = endpointFor("history.php");
 
 let currentCredits = Number(window.ASTRALUS_SERVER_CREDITS ?? 0);
 const IS_LOGGED_IN = Boolean(window.ASTRALUS_IS_LOGGED_IN ?? false);
@@ -68,6 +87,36 @@ const panels = {
   history: document.getElementById("panel-history"),
 };
 
+const MOBILE_EXPERIENCE_QUERY = window.matchMedia("(max-width: 900px)");
+const mobileMedia = MOBILE_EXPERIENCE_QUERY;
+const REDUCED_MOTION_QUERY = window.matchMedia("(prefers-reduced-motion: reduce)");
+const MOBILE_OUTPUT_DEFAULT_TEXT =
+  "Töltsd ki a mezőket, válassz egy modult, majd indítsd a feldolgozást.";
+
+const MOBILE_TOOL_META = {
+  news: {
+    title: "Hírek",
+    subtitle: "AI hírösszefoglaló indítása",
+  },
+  notes: {
+    title: "Jegyzet",
+    subtitle: "PDF vagy szöveg összefoglalása",
+  },
+  study: {
+    title: "Study",
+    subtitle: "Tanulási vázlat generálása",
+  },
+  chat: {
+    title: "Chat",
+    subtitle: "Kérdezz közvetlenül az AI-tól",
+  },
+  history: {
+    title: "Előzmény",
+    subtitle: "Korábbi eredmények megnyitása",
+  },
+};
+const TOOL_META = MOBILE_TOOL_META;
+
 /* ================= SEGÉDFÜGGVÉNYEK ================= */
 
 function safeJsonParse(value, fallback = []) {
@@ -83,6 +132,22 @@ function autoResizeTextarea(el) {
   if (!el) return;
 
   el.style.height = "auto";
+
+  const mobileMaxHeights = {
+    "notes-input": 240,
+    "study-topic": 220,
+    "chat-input": 132,
+  };
+  const mobileMaxHeight = mobileMaxHeights[el.id];
+
+  if (mobileMaxHeight && window.matchMedia("(max-width: 900px)").matches) {
+    const nextHeight = Math.min(el.scrollHeight, mobileMaxHeight);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > mobileMaxHeight ? "auto" : "hidden";
+    return;
+  }
+
+  el.style.overflowY = "";
   el.style.height = `${el.scrollHeight}px`;
 }
 
@@ -199,20 +264,242 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
-function setOutputContent(text, tagList = []) {
+let activeToolKey = "news";
+let latestOutputText = output?.textContent?.trim() || MOBILE_OUTPUT_DEFAULT_TEXT;
+let latestOutputTags = [];
+
+function isMobileExperience() {
+  return MOBILE_EXPERIENCE_QUERY.matches;
+}
+
+function hasUsableOutput(text = latestOutputText) {
+  const normalized = String(text || "").trim();
+  return Boolean(normalized && normalized !== MOBILE_OUTPUT_DEFAULT_TEXT);
+}
+
+function hasMeaningfulOutput() {
+  if (!hasUsableOutput()) return false;
+
+  return !/^(Válassz egy funkciót|AI feldolgozás indul|Feldolgozás elindítva|AI összefoglaló készül|Hiba:)/i.test(
+    String(latestOutputText || "").trim()
+  );
+}
+
+function renderTagMarkup(tagList = []) {
+  if (!Array.isArray(tagList) || !tagList.length) return "";
+
+  return tagList
+    .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
+    .join("");
+}
+
+function setOutputText(text = "", options = {}) {
+  latestOutputText = text || "";
+
   if (output) {
-    output.textContent = text || "";
+    output.textContent = latestOutputText;
+  }
+
+  syncMobileOutputState();
+
+  if (options.openMobileSheet && isMobileExperience()) {
+    openMobileOutputSheet();
+  }
+}
+
+function setOutputTags(tagList = []) {
+  latestOutputTags = Array.isArray(tagList) ? [...tagList] : [];
+
+  if (tags) {
+    tags.innerHTML = renderTagMarkup(latestOutputTags);
+  }
+
+  syncMobileOutputState();
+}
+
+function setOutputContent(text, tagList = [], options = {}) {
+  latestOutputText = text || "";
+  latestOutputTags = Array.isArray(tagList) ? [...tagList] : [];
+
+  if (output) {
+    output.textContent = latestOutputText;
   }
 
   if (tags) {
-    tags.innerHTML = "";
-
-    if (Array.isArray(tagList) && tagList.length) {
-      tags.innerHTML = tagList
-        .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
-        .join("");
-    }
+    tags.innerHTML = renderTagMarkup(latestOutputTags);
   }
+
+  syncMobileOutputState();
+
+  if (options.openMobileSheet && isMobileExperience()) {
+    openMobileOutputSheet();
+  }
+}
+
+function syncMobileOutputState() {
+  if (mobileOutputContent) {
+    mobileOutputContent.textContent = latestOutputText || MOBILE_OUTPUT_DEFAULT_TEXT;
+  }
+
+  if (mobileOutputTags) {
+    mobileOutputTags.innerHTML = renderTagMarkup(latestOutputTags);
+  }
+
+  const canOpen =
+    mobileMedia.matches &&
+    hasMeaningfulOutput() &&
+    activeToolKey !== "history";
+
+  if (mobileOpenResultButton) {
+    mobileOpenResultButton.hidden = !canOpen;
+  }
+}
+
+function syncMobileResultCta() {
+  syncMobileOutputState();
+}
+
+function openMobileOutputSheet() {
+  if (!mobileOutputSheet || !mobileOutputBackdrop || !hasMeaningfulOutput()) return;
+
+  syncMobileOutputState();
+
+  mobileOutputBackdrop.hidden = false;
+  mobileOutputSheet.hidden = false;
+  document.body.classList.add("mobile-output-open");
+  document.documentElement.classList.add("mobile-output-open");
+
+  requestAnimationFrame(() => {
+    mobileOutputBackdrop.classList.add("is-open");
+    mobileOutputSheet.classList.add("is-open");
+    mobileOutputCloseButton?.focus({ preventScroll: true });
+  });
+}
+
+function closeMobileOutputSheet() {
+  if (!mobileOutputSheet || !mobileOutputBackdrop) return;
+
+  mobileOutputBackdrop.classList.remove("is-open");
+  mobileOutputSheet.classList.remove("is-open");
+  document.body.classList.remove("mobile-output-open");
+  document.documentElement.classList.remove("mobile-output-open");
+
+  setTimeout(() => {
+    if (!mobileOutputSheet.classList.contains("is-open")) {
+      mobileOutputSheet.hidden = true;
+      mobileOutputBackdrop.hidden = true;
+    }
+  }, REDUCED_MOTION_QUERY.matches ? 0 : 220);
+}
+
+async function copyMobileOutputText() {
+  const text = (latestOutputText || "").trim();
+  if (!text || !mobileOutputCopyButton) return;
+
+  const originalLabel = mobileOutputCopyButton.textContent;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    mobileOutputCopyButton.textContent = "Másolva";
+  } catch (error) {
+    mobileOutputCopyButton.textContent = "Nem sikerült";
+  }
+
+  window.setTimeout(() => {
+    mobileOutputCopyButton.textContent = originalLabel || "Másolás";
+  }, 1400);
+}
+
+function initMobileOutputSheetControls() {
+  mobileOpenResultButton?.addEventListener("click", openMobileOutputSheet);
+  mobileOutputCloseButton?.addEventListener("click", closeMobileOutputSheet);
+  mobileOutputBackdrop?.addEventListener("click", closeMobileOutputSheet);
+  mobileOutputCopyButton?.addEventListener("click", copyMobileOutputText);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && mobileOutputSheet && !mobileOutputSheet.hidden) {
+      closeMobileOutputSheet();
+    }
+  });
+}
+
+function initMobileNativeSelects() {
+  document.querySelectorAll("[data-native-select-for]").forEach((nativeSelect) => {
+    const targetId = nativeSelect.dataset.nativeSelectFor;
+    const hiddenInput = targetId ? document.getElementById(targetId) : null;
+    const customSelect = hiddenInput?.closest(".custom-select");
+
+    if (!hiddenInput) return;
+
+    function syncCustomSelect(value) {
+      const option = Array.from(customSelect?.querySelectorAll(".custom-select-option") || [])
+        .find((item) => item.dataset.value === value);
+      const label = option?.textContent?.trim();
+      const valueEl = customSelect?.querySelector(".custom-select-value");
+
+      customSelect?.querySelectorAll(".custom-select-option").forEach((item) => {
+        item.classList.toggle("is-selected", item === option);
+      });
+
+      if (valueEl && label) {
+        valueEl.textContent = label;
+      }
+    }
+
+    nativeSelect.value = hiddenInput.value || nativeSelect.value;
+    syncCustomSelect(nativeSelect.value);
+
+    nativeSelect.addEventListener("change", () => {
+      hiddenInput.value = nativeSelect.value;
+      syncCustomSelect(nativeSelect.value);
+      hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+      hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    hiddenInput.addEventListener("change", () => {
+      nativeSelect.value = hiddenInput.value;
+      syncCustomSelect(hiddenInput.value);
+    });
+  });
+}
+
+function initMobileKeyboardState() {
+  const focusableInputSelector = "input, textarea, select, [contenteditable='true']";
+
+  function isKeyboardTarget(element) {
+    return Boolean(element?.matches?.(focusableInputSelector));
+  }
+
+  function updateFromViewport() {
+    const activeElement = document.activeElement;
+    const visualViewport = window.visualViewport;
+
+    if (!isMobileExperience() || !isKeyboardTarget(activeElement)) {
+      document.body.classList.remove("mobile-keyboard-open");
+      return;
+    }
+
+    const keyboardLikelyOpen =
+      visualViewport &&
+      window.innerHeight - visualViewport.height > 120;
+
+    document.body.classList.toggle("mobile-keyboard-open", Boolean(keyboardLikelyOpen || isKeyboardTarget(activeElement)));
+  }
+
+  document.addEventListener("focusin", (event) => {
+    if (isMobileExperience() && isKeyboardTarget(event.target)) {
+      document.body.classList.add("mobile-keyboard-open");
+    }
+  });
+
+  document.addEventListener("focusout", () => {
+    window.setTimeout(updateFromViewport, 120);
+  });
+
+  window.visualViewport?.addEventListener("resize", updateFromViewport);
+  window.addEventListener("orientationchange", () => {
+    window.setTimeout(updateFromViewport, 180);
+  });
 }
 
 function collectChatConversationFromDOM() {
@@ -385,7 +672,8 @@ function restoreHistoryItem(index) {
     switchTab("news");
     setOutputContent(
       restoredOutput || "Mentett hírösszefoglaló.",
-      restoredTags.length ? restoredTags : ["Hírkereső", "Előzmény", "Betöltve"]
+      restoredTags.length ? restoredTags : ["Hírkereső", "Előzmény", "Betöltve"],
+      { openMobileSheet: true }
     );
 
     if (newsList) {
@@ -399,7 +687,8 @@ function restoreHistoryItem(index) {
     switchTab("notes");
     setOutputContent(
       restoredOutput || "Mentett jegyzet vagy PDF összefoglaló.",
-      restoredTags.length ? restoredTags : ["PDF", "Jegyzet összefoglaló", "Előzmény"]
+      restoredTags.length ? restoredTags : ["PDF", "Jegyzet összefoglaló", "Előzmény"],
+      { openMobileSheet: true }
     );
     return;
   }
@@ -409,7 +698,8 @@ function restoreHistoryItem(index) {
     switchTab("study");
     setOutputContent(
       restoredOutput || "Mentett tanulási anyag.",
-      restoredTags.length ? restoredTags : ["Tanulási jegyzet", "Előzmény"]
+      restoredTags.length ? restoredTags : ["Tanulási jegyzet", "Előzmény"],
+      { openMobileSheet: true }
     );
     return;
   }
@@ -791,7 +1081,7 @@ async function extractPdfTextFromFile(file, pdfjsLib) {
 
 async function runAI(type) {
   try {
-    if (output) output.textContent = "AI feldolgozás indul...";
+    setOutputContent("AI feldolgozás indul...", []);
 
     let payload = {};
     let historyTitle = "";
@@ -809,9 +1099,7 @@ async function runAI(type) {
       };
 
       if (!payload.text) {
-        if (output) {
-          output.textContent = "Adj meg szöveget vagy tölts fel legalább egy PDF-et az összefoglaláshoz.";
-        }
+        setOutputContent("Adj meg szöveget vagy tölts fel legalább egy PDF-et az összefoglaláshoz.", []);
         return;
       }
 
@@ -830,9 +1118,7 @@ async function runAI(type) {
       };
 
       if (!payload.subject || !payload.topic) {
-        if (output) {
-          output.textContent = "Add meg a tantárgyat és a témát a jegyzet generálásához.";
-        }
+        setOutputContent("Add meg a tantárgyat és a témát a jegyzet generálásához.", []);
         return;
       }
 
@@ -864,7 +1150,7 @@ async function runAI(type) {
     currentCredits = Number(data.new_credits ?? currentCredits);
     updateCreditsUI();
 
-    setOutputContent(finalText, finalTags);
+    setOutputContent(finalText, finalTags, { openMobileSheet: true });
 
     if (type === "notes") {
       notifyCompletion("Jegyzet kész", "A jegyzet összefoglaló elkészült.");
@@ -891,7 +1177,7 @@ renderHistory();
     }
   } catch (error) {
     console.error(error);
-    if (output) output.textContent = "Hiba: " + error.message;
+    setOutputContent("Hiba: " + error.message, ["Hiba"]);
     showToast("Hiba", error.message || "A feldolgozás nem sikerült.");
   }
 }
@@ -902,7 +1188,7 @@ async function runNewsFlow() {
     const tone = document.getElementById("summary-type")?.value || "rovid-kivonat";
 
     if (!topic) {
-      if (output) output.textContent = "Adj meg egy keresési témát a hírkereséshez.";
+      setOutputContent("Adj meg egy keresési témát a hírkereséshez.", []);
       return;
     }
 
@@ -921,7 +1207,7 @@ async function runNewsFlow() {
       formData: { topic, tone },
     });
 
-    if (output) output.textContent = "AI összefoglaló készül...";
+    setOutputContent("AI összefoglaló készül...", ["Hírkereső", "Feldolgozás"]);
 
     if (newsList) {
       newsList.innerHTML = `
@@ -941,7 +1227,7 @@ async function runNewsFlow() {
     currentCredits = Number(aiData.new_credits ?? currentCredits);
     updateCreditsUI();
 
-    setOutputContent(finalText, finalTags);
+    setOutputContent(finalText, finalTags, { openMobileSheet: true });
     notifyCompletion("Hír elkészült", `A(z) "${topic}" témához elkészült az összefoglaló.`);
 
     const items = getHistoryItems();
@@ -957,7 +1243,7 @@ renderHistory();
     }
   } catch (error) {
     console.error(error);
-    if (output) output.textContent = "Hiba: " + error.message;
+    setOutputContent("Hiba: " + error.message, ["Hiba"]);
     showToast("Hiba", error.message || "A hírösszefoglaló nem sikerült.");
   }
 }
@@ -979,6 +1265,11 @@ function applyTheme(theme) {
     mobileThemeButton.textContent = isDark ? "Light" : "Dark";
   }
 
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+    button.textContent = isDark ? "Light" : "Dark";
+    button.setAttribute("aria-label", isDark ? "Világos téma bekapcsolása" : "Sötét téma bekapcsolása");
+  });
+
   localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
 }
 
@@ -986,21 +1277,105 @@ function toggleTheme() {
   applyTheme(document.body.classList.contains("dark-mode") ? "light" : "dark");
 }
 
-function switchTab(key) {
-  tabs.forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.tab === key);
+function getToolKeyFromControl(control) {
+  return control?.dataset?.tab || control?.dataset?.dockTab || "";
+}
+
+function syncDockState(key) {
+  dockButtons.forEach((button) => {
+    const active = button.dataset.dockTab === key;
+    button.classList.toggle("active", active);
+    button.classList.toggle("is-active", active);
+
+    if (active) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  });
+}
+
+function syncWorkspaceBar(key) {
+  const meta = TOOL_META[key] || TOOL_META.news;
+
+  if (mobileCurrentToolTitle) {
+    mobileCurrentToolTitle.textContent = meta.title;
+  }
+
+  if (mobileCurrentToolSubtitle) {
+    mobileCurrentToolSubtitle.textContent = meta.subtitle;
+  }
+}
+
+function syncMobileDecorativeChrome() {
+  const isMobile = mobileMedia.matches;
+
+  document.querySelectorAll("[data-mobile-hide='true']").forEach((node) => {
+    if (!node.dataset.mobileOriginalAriaStored) {
+      node.dataset.mobileOriginalAriaStored = "true";
+      node.dataset.mobileOriginalAriaHidden = node.getAttribute("aria-hidden") || "";
+    }
+
+    if (isMobile) {
+      node.hidden = true;
+      node.setAttribute("aria-hidden", "true");
+      return;
+    }
+
+    node.hidden = false;
+
+    if (node.dataset.mobileOriginalAriaHidden) {
+      node.setAttribute("aria-hidden", node.dataset.mobileOriginalAriaHidden);
+    } else {
+      node.removeAttribute("aria-hidden");
+    }
   });
 
-  document.querySelectorAll(".mobile-tool-switch").forEach((button) => {
-    button.classList.toggle("active", button.dataset.mobileTab === key);
+  document.querySelectorAll("[data-mobile-hero-shell='true']").forEach((shell) => {
+    shell.removeAttribute("aria-hidden");
+
+    if (!isMobile || shell.dataset.mobileShellRemoved === "true") return;
+
+    const hasFunctionalChildren = shell.querySelector(
+      "form, input, textarea, select, button, [data-native-select-for], .module-form-section, .chat-messages, .history-list, .news-list"
+    );
+
+    if (!hasFunctionalChildren) {
+      shell.remove();
+      shell.dataset.mobileShellRemoved = "true";
+    }
+  });
+}
+
+function syncMobileChrome(key) {
+  activeToolKey = panels[key] ? key : "news";
+  syncDockState(activeToolKey);
+  syncWorkspaceBar(activeToolKey);
+  syncMobileResultCta();
+  syncMobileDecorativeChrome();
+}
+
+function updateMobileToolChrome(key) {
+  syncMobileChrome(key);
+}
+
+function switchTab(key) {
+  activeToolKey = panels[key] ? key : "news";
+
+  tabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.tab === activeToolKey);
   });
 
   Object.entries(panels).forEach(([panelKey, panel]) => {
     if (!panel) return;
-    panel.hidden = panelKey !== key;
+    panel.hidden = panelKey !== activeToolKey;
   });
 
-  const hideOutput = key === "chat" || key === "history";
+  const hideOutput = activeToolKey === "chat" || activeToolKey === "history";
+
+  if (hideOutput) {
+    closeMobileOutputSheet();
+  }
 
   if (panelGrid) {
     panelGrid.classList.toggle("full-width-mode", hideOutput);
@@ -1012,9 +1387,15 @@ function switchTab(key) {
     outputBox.setAttribute("aria-hidden", hideOutput ? "true" : "false");
   }
 
-  if (key === "history") {
+  if (activeToolKey === "history") {
     renderHistory();
   }
+
+  localStorage.setItem("aiWrappedActiveTool", activeToolKey);
+  syncMobileChrome(activeToolKey);
+
+  key = activeToolKey;
+  document.dispatchEvent(new CustomEvent("astralus:panel-switch", { detail: { key } }));
 }
 
 function animatePanelSwitch(nextTabKey) {
@@ -1313,6 +1694,10 @@ function initIndexCinematicIntro() {
     );
   }
 
+  function shouldDisableIntro() {
+    return prefersReducedMotion() || isMobileExperience();
+  }
+
   function hasSeenIntro() {
     try {
       return window.sessionStorage.getItem(INTRO_SEEN_KEY) === "true";
@@ -1488,7 +1873,7 @@ function initIndexCinematicIntro() {
       body.classList.add("intro-short");
     }
 
-    if (prefersReducedMotion()) {
+    if (shouldDisableIntro()) {
       body.classList.add("intro-reduced");
       timeline = readTimeline(body);
 
@@ -1540,6 +1925,11 @@ function initIndexCinematicIntro() {
     nodes = getIntroNodes();
 
     if (!nodes) return;
+
+    if (shouldDisableIntro()) {
+      forceIntroComplete(nodes, { reduced: true });
+      return;
+    }
 
     reduceMotionQuery = window.matchMedia
       ? window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -2300,12 +2690,45 @@ updateClearChatButtonVisibility();
   updateActiveNavLink();
   initUltraPremiumHeader();
 
+  const savedActiveTool = localStorage.getItem("aiWrappedActiveTool");
   const initialActiveTab =
     document.querySelector(".tool-tab.active")?.dataset.tab ||
-    document.querySelector(".mobile-tool-switch.active")?.dataset.mobileTab ||
+    document.querySelector(".mobile-bottom-dock [data-dock-tab].is-active")?.dataset.dockTab ||
+    (savedActiveTool && panels[savedActiveTool] ? savedActiveTool : "") ||
     "news";
 
   switchTab(initialActiveTab);
+  syncMobileChrome(activeToolKey);
+  initMobileOutputSheetControls();
+  initMobileNativeSelects();
+  initMobileKeyboardState();
+
+  document.querySelectorAll("form[data-api-form]").forEach((form) => {
+    if (!form.getAttribute("action")) {
+      form.setAttribute("action", API_ENDPOINT);
+    }
+
+    form.setAttribute("accept-charset", "UTF-8");
+  });
+
+  document.addEventListener("astralus:panel-switch", () => {
+    syncMobileDecorativeChrome();
+  });
+
+  const handleMobileExperienceChange = (event) => {
+    syncMobileChrome(activeToolKey);
+
+    if (!event.matches) {
+      closeMobileOutputSheet();
+      document.body.classList.remove("mobile-keyboard-open");
+    }
+  };
+
+  if (typeof MOBILE_EXPERIENCE_QUERY.addEventListener === "function") {
+    MOBILE_EXPERIENCE_QUERY.addEventListener("change", handleMobileExperienceChange);
+  } else if (typeof MOBILE_EXPERIENCE_QUERY.addListener === "function") {
+    MOBILE_EXPERIENCE_QUERY.addListener(handleMobileExperienceChange);
+  }
 
   const runNewsBtn = document.getElementById("run-news-btn");
   const runNotesBtn = document.getElementById("run-notes-btn");
@@ -2328,45 +2751,9 @@ updateClearChatButtonVisibility();
     });
   });
 
-  const mobileDrawerViews = document.getElementById("mobile-drawer-views");
-  const mobileToolsEntryBtn = document.getElementById("mobile-tools-entry-btn");
-  const mobileToolsBackBtn = document.getElementById("mobile-tools-back-btn");
-  const mobileDrawerMainView = document.getElementById("mobile-drawer-view-main");
-  const mobileDrawerToolsView = document.getElementById("mobile-drawer-view-tools");
-
-  function openMobileToolsView() {
-    if (!mobileDrawerViews || !mobileDrawerMainView || !mobileDrawerToolsView) return;
-    mobileDrawerViews.classList.add("is-tools-view");
-    mobileDrawerMainView.classList.remove("is-active");
-    mobileDrawerToolsView.classList.add("is-active");
-  }
-
-  function closeMobileToolsView() {
-    if (!mobileDrawerViews || !mobileDrawerMainView || !mobileDrawerToolsView) return;
-    mobileDrawerViews.classList.remove("is-tools-view");
-    mobileDrawerToolsView.classList.remove("is-active");
-    mobileDrawerMainView.classList.add("is-active");
-  }
-
-  if (mobileToolsEntryBtn) {
-    mobileToolsEntryBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      openMobileToolsView();
-    });
-  }
-
-  if (mobileToolsBackBtn) {
-    mobileToolsBackBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      closeMobileToolsView();
-    });
-  }
-
-  document.querySelectorAll(".mobile-tool-switch").forEach((button) => {
+  dockButtons.forEach((button) => {
     button.addEventListener("click", function () {
-      const nextTabKey = this.dataset.mobileTab;
+      const nextTabKey = getToolKeyFromControl(this);
       if (!nextTabKey) return;
 
       const matchingDesktopTab = document.querySelector(`.tool-tab[data-tab="${nextTabKey}"]`);
@@ -2378,21 +2765,6 @@ updateClearChatButtonVisibility();
         animatePanelSwitch(nextTabKey);
       }
 
-      const drawer = document.getElementById("mobile-drawer");
-      const overlay = document.getElementById("mobile-drawer-overlay");
-
-      document.body.classList.remove("mobile-menu-open");
-      drawer?.classList.remove("is-open");
-      overlay?.classList.remove("is-open");
-
-      closeMobileToolsView();
-
-      setTimeout(() => {
-        if (overlay) overlay.hidden = true;
-        if (drawer) drawer.hidden = true;
-      }, 400);
-
-      const appSection = document.getElementById("app");
       if (appSection) {
         setTimeout(() => {
           appSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2409,6 +2781,10 @@ updateClearChatButtonVisibility();
   if (mobileThemeButton) {
     mobileThemeButton.addEventListener("click", toggleTheme);
   }
+
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+    button.addEventListener("click", toggleTheme);
+  });
 
   if (clearHistoryButton) clearHistoryButton.addEventListener("click", openDeleteConfirm);
   if (confirmCancel) confirmCancel.addEventListener("click", closeDeleteConfirm);
@@ -2503,9 +2879,10 @@ updateClearChatButtonVisibility();
 
         renderUploadedPdfList();
 
-        if (output) {
-          output.textContent = `${files.length} PDF sikeresen beolvasva. A szöveg nem jelent meg a bemeneti mezőben, de az AI összefoglalóhoz fel lesz használva.`;
-        }
+        setOutputContent(
+          `${files.length} PDF sikeresen beolvasva. A szöveg nem jelent meg a bemeneti mezőben, de az AI összefoglalóhoz fel lesz használva.`,
+          ["PDF", "Beolvasva"]
+        );
 
         showToast("Sikeres fájl-feltöltés", `${files.length} PDF sikeresen betöltve.`);
       } catch (error) {
@@ -2513,9 +2890,7 @@ updateClearChatButtonVisibility();
         uploadedPdfDocuments = [];
         renderUploadedPdfList();
 
-        if (output) {
-          output.textContent = "Nem sikerült beolvasni a PDF-et: " + error.message;
-        }
+        setOutputContent("Nem sikerült beolvasni a PDF-et: " + error.message, ["PDF", "Hiba"]);
 
         showToast("PDF feldolgozási hiba", "A PDF feldolgozása nem sikerült.");
       }

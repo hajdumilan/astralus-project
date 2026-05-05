@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
+}
+
+if (function_exists('mb_internal_encoding')) {
+    mb_internal_encoding('UTF-8');
+}
+
 function astralus_load_env_file(string $path): void
 {
     if (!is_readable($path)) {
@@ -90,11 +98,17 @@ if ($dsn === null || $dsn === '') {
 }
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, [
+    $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+    ];
+
+    if (defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
+        $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci";
+    }
+
+    $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (Throwable $e) {
     astralus_database_error(
         'Nem sikerült kapcsolódni a MySQL adatbázishoz. Ellenőrizd az ASTRALUS_DB_HOST, ASTRALUS_DB_NAME, ASTRALUS_DB_USER és ASTRALUS_DB_PASS értékeket a .env fájlban.',
